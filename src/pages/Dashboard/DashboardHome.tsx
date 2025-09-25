@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { User, Briefcase, Menu, Plus, Users, Building, Settings, Shield, TrendingUp, Clock, Activity, Zap, Eye } from "lucide-react";
+import  { useEffect, useState } from "react";
+import { User, Briefcase, Menu, Plus, Users, Building, Settings, Shield, TrendingUp, Clock, Activity, Eye } from "lucide-react";
 
 const DashboardHome = () => {
   const [userName, setUserName] = useState("");
@@ -264,7 +264,7 @@ const DashboardHome = () => {
               { name: 'Database', status: 'Optimal', value: 98, color: 'green' },
               { name: 'API Services', status: 'Running', value: 100, color: 'blue' },
               { name: 'Security', status: 'Protected', value: 95, color: 'purple' }
-            ].map((metric, index) => (
+            ].map((metric) => (
               <div key={metric.name}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-700 font-medium">{metric.name}</span>

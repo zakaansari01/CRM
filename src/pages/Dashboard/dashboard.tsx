@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Outlet, Link } from "react-router-dom";
-import { ChevronDown, ChevronRight, Menu, X, User, LogOut, Shield, Bell, Search, Activity, Zap } from "lucide-react";
+import { ChevronDown, Menu, X, User, LogOut, Shield, Bell } from "lucide-react";
 
 interface SubMenu {
   id: number;
@@ -23,7 +23,7 @@ interface Menu {
 const Dashboard = () => {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [userName, setUserName] = useState("");
-  const [userEmail, setUserEmail] = useState("");
+
   const [departmentName, setDepartmentName] = useState("");
   const [expandedMenus, setExpandedMenus] = useState<{ [key: number]: boolean }>({});
   const [collapsed, setCollapsed] = useState(false);
@@ -41,7 +41,7 @@ const Dashboard = () => {
       const user = JSON.parse(userStr);
       setMenus(user?.menulist || []);
       setUserName(user?.name || "");
-      setUserEmail(user?.email || "");
+      
       setDepartmentName(user?.departmentName || "");
     } catch (error) {
       console.error("Error parsing user data:", error);

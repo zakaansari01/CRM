@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import  { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 import { API_BASE } from "../../utils/api";
-import { UserPlus, Building2, Shield, Briefcase, Lock } from "lucide-react";
+import { UserPlus } from "lucide-react";
 
 interface Company {
   id: number;
