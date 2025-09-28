@@ -1,11 +1,30 @@
-import  { useEffect, useState } from "react";
-import { User, Briefcase, Menu, Plus, Users, Building, Settings, Shield, TrendingUp, Clock, Activity, Eye } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom"; // Add this import
+import { User, Briefcase, Menu, Plus, Users, Building, Settings, Shield, TrendingUp, Clock, Activity, Eye, CheckCircle, XCircle, PlayCircle, PauseCircle, AlertCircle } from "lucide-react";
+import axios from "axios";
+import { toast } from "react-hot-toast";
 
-const DashboardHome = () => {
+interface DashboardHomeProps {
+  onNavigateToTickets?: (status: string) => void;
+}
+
+const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTickets }) => {
+  const navigate = useNavigate(); // Add this line
   const [userName, setUserName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [menuCount, setMenuCount] = useState(0);
+  const [ticketStatusData, setTicketStatusData] = useState({
+    COMPLETED: 0,
+    CLOSED: 0,
+    INPROGRESS: 0,
+    PENDING: 0,
+    OPEN: 0
+  });
+  const [loading, setLoading] = useState(false);
+
+  // Define the display order for status cards
+  const statusOrder = ['OPEN', 'PENDING', 'INPROGRESS', 'CLOSED', 'COMPLETED'];
 
   useEffect(() => {
     const userStr = sessionStorage.getItem("user");
@@ -20,7 +39,185 @@ const DashboardHome = () => {
         console.error("Error parsing user data:", error);
       }
     }
+    
+    fetchTicketStatusCounts();
   }, []);
+
+  const fetchTicketStatusCounts = async () => {
+    try {
+      setLoading(true);
+      const token = sessionStorage.getItem("token");
+      const res = await axios.get("http://13.127.232.90:8081/ticket/ticket-status-count", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data.code === 1) {
+        setTicketStatusData(res.data.data);
+      } else {
+        toast.error(res.data.message || "Failed to fetch ticket status counts");
+      }
+    } catch (error) {
+      console.error("Error fetching ticket status counts:", error);
+      toast.error("Error fetching ticket status counts");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Donut Chart Component
+  const DonutChart = ({ data }: { data: Record<string, number> }) => {
+    const total = Object.values(data).reduce((sum, count) => sum + count, 0);
+    
+    if (total === 0) {
+      return (
+        <div className="flex items-center justify-center w-64 h-64">
+          <div className="text-gray-500 text-center">
+            <div className="w-32 h-32 bg-gray-200 rounded-full mx-auto mb-2"></div>
+            <p>No tickets available</p>
+          </div>
+        </div>
+      );
+    }
+
+    const colors: Record<string, string> = {
+      COMPLETED: '#10b981', // Green
+      CLOSED: '#6b7280',    // Gray
+      INPROGRESS: '#f59e0b', // Amber
+      PENDING: '#ef4444',   // Red
+      OPEN: '#3b82f6'       // Blue
+    };
+
+    let currentAngle = 0;
+    const radius = 80;
+    const innerRadius = 50;
+    const centerX = 120;
+    const centerY = 120;
+
+    const createPath = (startAngle: number, endAngle: number, outerRadius: number, innerRadius: number) => {
+      const start = polarToCartesian(centerX, centerY, outerRadius, endAngle);
+      const end = polarToCartesian(centerX, centerY, outerRadius, startAngle);
+      const innerStart = polarToCartesian(centerX, centerY, innerRadius, endAngle);
+      const innerEnd = polarToCartesian(centerX, centerY, innerRadius, startAngle);
+      
+      const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+      
+      return [
+        "M", start.x, start.y, 
+        "A", outerRadius, outerRadius, 0, largeArcFlag, 0, end.x, end.y,
+        "L", innerEnd.x, innerEnd.y,
+        "A", innerRadius, innerRadius, 0, largeArcFlag, 1, innerStart.x, innerStart.y,
+        "Z"
+      ].join(" ");
+    };
+
+    const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
+      const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+      return {
+        x: centerX + (radius * Math.cos(angleInRadians)),
+        y: centerY + (radius * Math.sin(angleInRadians))
+      };
+    };
+
+    return (
+      <div className="flex items-center justify-center">
+        <div className="relative">
+          <svg width="240" height="240" className="drop-shadow-lg">
+            {Object.entries(data).map(([status, count]) => {
+              if (count === 0) return null;
+              
+              const percentage = (count / total) * 100;
+              const angle = (count / total) * 360;
+              const startAngle = currentAngle;
+              const endAngle = currentAngle + angle;
+              
+              const path = createPath(startAngle, endAngle, radius, innerRadius);
+              currentAngle += angle;
+              
+              return (
+                <g key={status}>
+                  <path
+                    d={path}
+                    fill={colors[status]}
+                    className="hover:opacity-80 transition-opacity duration-200 cursor-pointer"
+                    onClick={() => handleCardClick(status)}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+          
+          {/* Center text */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-slate-800">{total}</div>
+              <div className="text-sm text-slate-600 font-medium">Total Tickets</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Updated handleCardClick function to navigate to ShowTicketPage with filter
+  const handleCardClick = (status: string) => {
+    // Navigate to ticket show page with status filter as URL parameter
+    navigate(`/home/ticket/show?status=${status}`);
+    
+    // Also call the optional prop function if provided (for backward compatibility)
+    if (onNavigateToTickets) {
+      onNavigateToTickets(status);
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return <CheckCircle className="w-8 h-8 text-white" />;
+      case 'CLOSED':
+        return <XCircle className="w-8 h-8 text-white" />;
+      case 'INPROGRESS':
+        return <PlayCircle className="w-8 h-8 text-white" />;
+      case 'PENDING':
+        return <AlertCircle className="w-8 h-8 text-white" />;
+      case 'OPEN':
+        return <Activity className="w-8 h-8 text-white" />;
+      default:
+        return <Activity className="w-8 h-8 text-white" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return 'from-green-500 to-emerald-600';
+      case 'CLOSED':
+        return 'from-gray-500 to-gray-600';
+      case 'INPROGRESS':
+        return 'from-amber-500 to-orange-600';
+      case 'PENDING':
+        return 'from-red-500 to-red-600';
+      case 'OPEN':
+        return 'from-blue-500 to-blue-600';
+      default:
+        return 'from-gray-500 to-gray-600';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return 'Completed';
+      case 'CLOSED':
+        return 'Closed';
+      case 'INPROGRESS':
+        return 'In Progress';
+      case 'PENDING':
+        return 'Pending';
+      case 'OPEN':
+        return 'Open';
+      default:
+        return status;
+    }
+  };
 
   return (
     <div className="space-y-8 relative">
@@ -31,7 +228,7 @@ const DashboardHome = () => {
         <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-indigo-500/5 rounded-full blur-3xl animate-pulse" style={{animationDelay: '4s'}}></div>
       </div>
 
-      {/* Hero Welcome Section */}
+      {/* Hero Welcome Section with Donut Chart */}
       <div className="relative bg-gradient-to-br from-white/90 to-blue-50/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-12 overflow-hidden group">
         {/* Animated background patterns */}
         <div className="absolute inset-0 opacity-10">
@@ -51,19 +248,22 @@ const DashboardHome = () => {
         </div>
 
         <div className="relative z-10 text-center">
-          {/* Dynamic icon with glow effect */}
-          <div className="relative w-24 h-24 mx-auto mb-8">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-500"></div>
-            <div className="relative w-24 h-24 bg-gradient-to-r from-slate-700 to-blue-700 rounded-2xl flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform duration-300">
-              <Shield className="w-12 h-12 text-white drop-shadow-lg" />
-              <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
-                <div className="w-2 h-2 bg-white rounded-full"></div>
+          {/* Donut Chart */}
+          <div className="mb-8">
+            {loading ? (
+              <div className="flex items-center justify-center w-64 h-64 mx-auto">
+                <div className="text-gray-500 text-center">
+                  <div className="w-32 h-32 bg-gray-200 rounded-full mx-auto mb-2 animate-pulse"></div>
+                  <p>Loading ticket data...</p>
+                </div>
               </div>
-            </div>
+            ) : (
+              <DonutChart data={ticketStatusData} />
+            )}
           </div>
           
           <h2 className="text-5xl font-bold bg-gradient-to-r from-slate-800 to-blue-800 bg-clip-text text-transparent mb-4 group-hover:from-blue-600 group-hover:to-purple-600 transition-all duration-500">
-            Welcome back, {userName}!
+            Ticket Overview
           </h2>
           
           <div className="inline-flex items-center space-x-2 bg-white/60 backdrop-blur-sm px-6 py-3 rounded-full border border-blue-200/50 mb-4">
@@ -73,223 +273,57 @@ const DashboardHome = () => {
             </span>
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           </div>
-          
-         
 
-          {/* Interactive stats bar */}
-          <div className="flex items-center justify-center space-x-8 text-sm">
-            <div className="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-full">
-              <Activity className="w-4 h-4 text-green-600" />
-              <span className="text-green-700 font-medium">System Active</span>
-            </div>
-            <div className="flex items-center space-x-2 bg-blue-50 px-4 py-2 rounded-full">
-              <Clock className="w-4 h-4 text-blue-600" />
-              <span className="text-blue-700 font-medium">Session: 2h 15m</span>
-            </div>
-            <div className="flex items-center space-x-2 bg-purple-50 px-4 py-2 rounded-full">
-              <Eye className="w-4 h-4 text-purple-600" />
-              <span className="text-purple-700 font-medium">Secure Access</span>
-            </div>
-          </div>
-        </div>
-
-        
-      </div>
-
-      {/* Dynamic Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* User Profile Card */}
-        <div className="relative bg-gradient-to-br from-white/90 to-blue-50/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group overflow-hidden">
-          {/* Animated background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-purple-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-blue-500/10 rounded-full blur-xl group-hover:bg-blue-500/20 transition-colors duration-500"></div>
-          
-          <div className="relative z-10">
-            <div className="flex items-start justify-between mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <User className="w-8 h-8 text-white" />
-              </div>
-              <div className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold tracking-wide">
-                ACTIVE
-              </div>
-            </div>
-            
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">User Profile</h3>
-            <p className="text-2xl font-bold text-slate-800 mb-1">{userName}</p>
-            <p className="text-slate-600 text-sm mb-6 truncate">{userEmail}</p>
-            
-            
-          </div>
-        </div>
-
-        {/* Department Card */}
-        <div className="relative bg-gradient-to-br from-white/90 to-green-50/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-green-600/5 to-emerald-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-green-500/10 rounded-full blur-xl group-hover:bg-green-500/20 transition-colors duration-500"></div>
-          
-          <div className="relative z-10">
-            <div className="flex items-start justify-between mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <Briefcase className="w-8 h-8 text-white" />
-              </div>
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="w-4 h-4 text-green-600" />
-                <span className="text-green-600 text-xs font-bold">HIGH</span>
-              </div>
-            </div>
-            
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Department</h3>
-            <p className="text-2xl font-bold text-slate-800 mb-1">{departmentName}</p>
-            <p className="text-slate-600 text-sm mb-6">Lead Administrator</p>
-            
-            
-          </div>
-        </div>
-
-        {/* Menu Access Card */}
-        <div className="relative bg-gradient-to-br from-white/90 to-purple-50/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-8 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-600/5 to-pink-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-purple-500/10 rounded-full blur-xl group-hover:bg-purple-500/20 transition-colors duration-500"></div>
-          
-          <div className="relative z-10">
-            <div className="flex items-start justify-between mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-                <Menu className="w-8 h-8 text-white" />
-              </div>
-              <div className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold">
-                FULL ACCESS
-              </div>
-            </div>
-            
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">System Access</h3>
-            <p className="text-2xl font-bold text-slate-800 mb-1">{menuCount} Modules</p>
-            <p className="text-slate-600 text-sm mb-6">Available Resources</p>
-            
-            
-          </div>
-        </div>
-      </div>
-
-      {/* Enhanced Quick Actions */}
-      <div className="relative bg-gradient-to-br from-white/90 to-slate-50/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-10 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-600/5 to-blue-600/5"></div>
-        
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-10">
-            <div>
-              <h3 className="text-3xl font-bold text-slate-800 mb-2">Quick Actions</h3>
-              <p className="text-slate-600 text-lg">Streamlined access to essential tools</p>
-            </div>
-            <div className="w-16 h-16 bg-gradient-to-r from-slate-700 to-blue-700 rounded-2xl flex items-center justify-center shadow-xl">
-              <Settings className="w-8 h-8 text-white animate-spin" style={{animationDuration: '8s'}} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {[
-              { icon: Plus, label: 'Add Menu', color: 'blue', gradient: 'from-blue-500 to-cyan-500' },
-              { icon: Users, label: 'Manage Users', color: 'green', gradient: 'from-green-500 to-emerald-500' },
-              { icon: Building, label: 'Company Settings', color: 'purple', gradient: 'from-purple-500 to-pink-500' },
-              { icon: Settings, label: 'System Config', color: 'slate', gradient: 'from-slate-500 to-blue-500' }
-            ].map((action, index) => (
-              <div
-                key={action.label}
-                className="group relative bg-white/60 backdrop-blur-sm border border-white/30 rounded-2xl p-8 cursor-pointer hover:shadow-2xl hover:-translate-y-3 transition-all duration-500 overflow-hidden"
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                {/* Dynamic background effect */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${action.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}></div>
-                <div className="absolute -top-8 -right-8 w-20 h-20 bg-current opacity-5 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700" style={{color: action.color === 'blue' ? '#3b82f6' : action.color === 'green' ? '#10b981' : action.color === 'purple' ? '#8b5cf6' : '#64748b'}}></div>
+         {/* Ticket Status Cards Grid - Now ordered according to statusOrder array */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {statusOrder.map((status) => {
+          const count = ticketStatusData[status as keyof typeof ticketStatusData];
+          return (
+            <div
+              key={status}
+              onClick={() => handleCardClick(status)}
+              className="relative bg-gradient-to-br from-white/90 to-gray-50/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-6 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group overflow-hidden cursor-pointer"
+            >
+              {/* Animated background */}
+              <div className="absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
+                background: `linear-gradient(135deg, ${status === 'COMPLETED' ? 'rgba(16, 185, 129, 0.05)' : 
+                  status === 'CLOSED' ? 'rgba(107, 114, 128, 0.05)' :
+                  status === 'INPROGRESS' ? 'rgba(245, 158, 11, 0.05)' :
+                  status === 'PENDING' ? 'rgba(239, 68, 68, 0.05)' :
+                  'rgba(59, 130, 246, 0.05)'} to transparent)`
+              }}></div>
+              <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full blur-xl group-hover:opacity-20 transition-colors duration-500" style={{
+                backgroundColor: status === 'COMPLETED' ? 'rgba(16, 185, 129, 0.1)' :
+                  status === 'CLOSED' ? 'rgba(107, 114, 128, 0.1)' :
+                  status === 'INPROGRESS' ? 'rgba(245, 158, 11, 0.1)' :
+                  status === 'PENDING' ? 'rgba(239, 68, 68, 0.1)' :
+                  'rgba(59, 130, 246, 0.1)'
+              }}></div>
+              
+              <div className="relative z-10">
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`w-14 h-14 bg-gradient-to-r ${getStatusColor(status)} rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                    {getStatusIcon(status)}
+                  </div>
+                  <div className="px-2 py-1 bg-white/70 text-gray-700 rounded-full text-xs font-semibold tracking-wide">
+                    {loading ? '...' : count}
+                  </div>
+                </div>
                 
-                <div className="relative z-10 text-center">
-                  {/* Icon with glow effect */}
-                  <div className="relative mb-6">
-                    <div className={`absolute inset-0 bg-gradient-to-r ${action.gradient} rounded-2xl blur-lg opacity-30 group-hover:opacity-60 transition-opacity duration-500`}></div>
-                    <div className={`relative w-16 h-16 bg-gradient-to-r ${action.gradient} rounded-2xl mx-auto flex items-center justify-center shadow-lg group-hover:scale-125 group-hover:rotate-6 transition-all duration-500`}>
-                      <action.icon className="w-8 h-8 text-white drop-shadow-lg" />
-                    </div>
-                  </div>
-                  
-                  <p className="text-slate-700 font-semibold text-lg group-hover:text-slate-900 transition-colors duration-300">
-                    {action.label}
-                  </p>
-                  
-                  {/* Hover indicator */}
-                  <div className="mt-4 w-full h-1 bg-slate-200 rounded-full overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className={`h-full bg-gradient-to-r ${action.gradient} rounded-full transform -translate-x-full group-hover:translate-x-0 transition-transform duration-700`}></div>
-                  </div>
-                </div>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{getStatusLabel(status)}</h3>
+                <p className="text-xl font-bold text-slate-800 mb-1">
+                  {loading ? 'Loading...' : `${count} Tickets`}
+                </p>
+                <p className="text-slate-600 text-xs">Click to view details</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Advanced Info Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Real-time Activity */}
-        <div className="lg:col-span-2 bg-gradient-to-br from-white/90 to-blue-50/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h4 className="text-xl font-bold text-slate-800">Live Activity Feed</h4>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-green-600 font-medium">Live</span>
             </div>
-          </div>
-          
-          <div className="space-y-4">
-            {[
-              { type: 'login', message: 'Secure authentication completed', time: '2 min ago', color: 'blue' },
-              { type: 'update', message: 'System preferences synchronized', time: '1 hour ago', color: 'green' },
-              { type: 'security', message: 'Security scan completed successfully', time: '2 hours ago', color: 'purple' }
-            ].map((activity, index) => (
-              <div key={index} className="flex items-center space-x-4 p-4 bg-white/60 rounded-xl border border-white/30 hover:bg-white/80 transition-colors duration-300">
-                <div className={`w-3 h-3 rounded-full ${activity.color === 'blue' ? 'bg-blue-500' : activity.color === 'green' ? 'bg-green-500' : 'bg-purple-500'} animate-pulse`}></div>
-                <div className="flex-1">
-                  <p className="text-slate-700 font-medium">{activity.message}</p>
-                  <p className="text-slate-500 text-sm">{activity.time}</p>
-                </div>
-                <Activity className="w-4 h-4 text-slate-400" />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* System Health */}
-        <div className="bg-gradient-to-br from-white/90 to-green-50/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/20 p-8">
-          <h4 className="text-xl font-bold text-slate-800 mb-6">System Health</h4>
-          
-          <div className="space-y-6">
-            {[
-              { name: 'Database', status: 'Optimal', value: 98, color: 'green' },
-              { name: 'API Services', status: 'Running', value: 100, color: 'blue' },
-              { name: 'Security', status: 'Protected', value: 95, color: 'purple' }
-            ].map((metric) => (
-              <div key={metric.name}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-slate-700 font-medium">{metric.name}</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                    metric.color === 'green' ? 'bg-green-100 text-green-700' :
-                    metric.color === 'blue' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                  }`}>
-                    {metric.status}
-                  </span>
-                </div>
-                <div className="w-full bg-slate-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full transition-all duration-1000 ${
-                      metric.color === 'green' ? 'bg-gradient-to-r from-green-400 to-green-600' :
-                      metric.color === 'blue' ? 'bg-gradient-to-r from-blue-400 to-blue-600' : 'bg-gradient-to-r from-purple-400 to-purple-600'
-                    }`}
-                    style={{ width: `${metric.value}%` }}
-                  ></div>
-                </div>
-                <p className="text-right text-xs text-slate-500 mt-1">{metric.value}%</p>
-              </div>
-            ))}
-          </div>
+          );
+        })}
+      </div>
         </div>
       </div>
+
+      
     </div>
   );
 };

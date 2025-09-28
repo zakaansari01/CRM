@@ -1,7 +1,6 @@
-import  { useState } from "react";
+import { useState } from "react";
 import axios from "axios";
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Lock, Mail, Loader2, Shield } from "lucide-react";
 
@@ -18,7 +17,7 @@ const Login = () => {
     e.preventDefault();
 
     if (!email.trim() || !password.trim()) {
-      toast.warn("Email and password are required");
+      toast.error("Email and password are required");
       return;
     }
 
@@ -29,7 +28,7 @@ const Login = () => {
         { email, password }
       );
 
-      const apiResponseData = response?.data?.data; // user info, token, menulist etc
+      const apiResponseData = response?.data?.data; 
       const tokenWithBearer = apiResponseData?.token;
 
       if (tokenWithBearer && apiResponseData) {
@@ -41,8 +40,13 @@ const Login = () => {
 
         console.log("Login successful, user data:", apiResponseData);
 
-        navigate("/home");
+        // Show success toast
         toast.success("Login successful!");
+
+        // Navigate after small delay to let toast render
+        setTimeout(() => {
+          navigate("/home");
+        }, 100);
       } else {
         toast.error("Invalid login credentials - No token received");
       }
@@ -64,18 +68,8 @@ const Login = () => {
           viewBox="0 0 100 100"
         >
           <defs>
-            <pattern
-              id="grid"
-              width="10"
-              height="10"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M 10 0 L 0 0 0 10"
-                fill="none"
-                stroke="#1e40af"
-                strokeWidth="0.5"
-              />
+            <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+              <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#1e40af" strokeWidth="0.5" />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
@@ -89,34 +83,18 @@ const Login = () => {
             <div className="w-16 h-16 bg-gradient-to-r from-slate-600 to-blue-600 rounded-xl mx-auto mb-6 flex items-center justify-center shadow-lg">
               <Shield className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-semibold text-slate-800 mb-2 tracking-tight">
-              Sign In
-            </h1>
-            <p className="text-slate-600 font-medium">
-              Access your account securely
-            </p>
+            <h1 className="text-3xl font-semibold text-slate-800 mb-2 tracking-tight">Sign In</h1>
+            <p className="text-slate-600 font-medium">Access your account securely</p>
           </div>
 
           {/* Form */}
           <form className="space-y-6" onSubmit={handleSubmit}>
             {/* Email */}
             <div className="space-y-3">
-              <label className="block text-sm font-semibold text-slate-700 tracking-wide">
-                Email Address
-              </label>
-              <div
-                className={`relative transition-all duration-200 ${
-                  focusedField === "email" ? "transform translate-y-0" : ""
-                }`}
-              >
+              <label className="block text-sm font-semibold text-slate-700 tracking-wide">Email Address</label>
+              <div className={`relative transition-all duration-200 ${focusedField === "email" ? "transform translate-y-0" : ""}`}>
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail
-                    className={`w-5 h-5 transition-colors duration-200 ${
-                      focusedField === "email"
-                        ? "text-blue-600"
-                        : "text-slate-400"
-                    }`}
-                  />
+                  <Mail className={`w-5 h-5 transition-colors duration-200 ${focusedField === "email" ? "text-blue-600" : "text-slate-400"}`} />
                 </div>
                 <input
                   type="email"
@@ -133,22 +111,10 @@ const Login = () => {
 
             {/* Password */}
             <div className="space-y-3">
-              <label className="block text-sm font-semibold text-slate-700 tracking-wide">
-                Password
-              </label>
-              <div
-                className={`relative transition-all duration-200 ${
-                  focusedField === "password" ? "transform translate-y-0" : ""
-                }`}
-              >
+              <label className="block text-sm font-semibold text-slate-700 tracking-wide">Password</label>
+              <div className={`relative transition-all duration-200 ${focusedField === "password" ? "transform translate-y-0" : ""}`}>
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock
-                    className={`w-5 h-5 transition-colors duration-200 ${
-                      focusedField === "password"
-                        ? "text-blue-600"
-                        : "text-slate-400"
-                    }`}
-                  />
+                  <Lock className={`w-5 h-5 transition-colors duration-200 ${focusedField === "password" ? "text-blue-600" : "text-slate-400"}`} />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
@@ -165,11 +131,7 @@ const Login = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors duration-200 focus:outline-none"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
@@ -177,18 +139,10 @@ const Login = () => {
             {/* Options */}
             <div className="flex items-center justify-between text-sm">
               <label className="flex items-center space-x-2 text-slate-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
-                />
+                <input type="checkbox" className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500" />
                 <span>Remember me</span>
               </label>
-              <a
-                href="#"
-                className="text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200"
-              >
-                Forgot password?
-              </a>
+              <a href="#" className="text-blue-600 hover:text-blue-700 font-medium transition-colors duration-200">Forgot password?</a>
             </div>
 
             {/* Submit */}
@@ -206,8 +160,6 @@ const Login = () => {
 
           {/* Footer */}
           <div className="mt-8 pt-6 border-t border-slate-200">
-            
-
             {/* Security Badge */}
             <div className="flex items-center justify-center mt-4 space-x-2 text-xs text-slate-500">
               <Shield className="w-3 h-3" />

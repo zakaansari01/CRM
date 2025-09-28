@@ -6,7 +6,7 @@ import { User, Users, RefreshCcw, ClipboardList, Calendar } from "lucide-react";
 
 const AddTicketPage = () => {
   const [candidates, setCandidates] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     candidateId: "",
@@ -23,17 +23,25 @@ const AddTicketPage = () => {
       try {
         const token = sessionStorage.getItem("token");
 
+        // fetch candidates
         const candidateRes = await axios.get(`${API_BASE}/candidates/get-all`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (candidateRes.data.code === 1) setCandidates(candidateRes.data.data || []);
 
-        const userRes = await axios.get(`${API_BASE}/auth/get-all`, {
+        // fetch logged in user
+        const userRes = await axios.get(`${API_BASE}/auth/getById/1`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (userRes.data.code === 1) setUsers(userRes.data.data || []);
+        if (userRes.data.code === 1) {
+          setCurrentUser(userRes.data.data);
+          setFormData((prev) => ({
+            ...prev,
+            userId: userRes.data.data.id,
+          }));
+        }
       } catch {
-        toast.error("Failed to fetch candidates or users");
+        toast.error("Failed to fetch data");
       }
     };
 
@@ -114,23 +122,26 @@ const AddTicketPage = () => {
             disabled={loading}
           />
 
-          {/* Assigned User */}
-          <SelectField
-            label="Assign To"
-            icon={<Users className="w-4 h-4 mr-2 text-blue-600" />}
-            name="userId"
-            value={formData.userId}
-            onChange={handleInputChange}
-            options={users.map((u) => ({ value: u.id, label: `${u.name} (${u.email})` }))}
-            placeholder="Select User"
-            disabled={loading}
-          />
+          
+         {/* Assigned User (Auto-filled) */}
+<div>
+  <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+    <Users className="w-4 h-4 mr-2 text-blue-600" /> Assigned To
+  </label>
+  <input
+    type="text"
+    value={currentUser ? `${currentUser.name} (${currentUser.email})` : "Loading..."}
+    disabled
+    className="w-full px-4 py-3 border rounded-lg bg-gray-100 text-gray-600"
+  />
+</div>
+
 
           {/* Status */}
           <SelectField
             label="Status"
             icon={<ClipboardList className="w-4 h-4 mr-2 text-blue-600" />}
-            name="status"
+            name="current status"
             value={formData.status}
             onChange={handleInputChange}
             options={[
