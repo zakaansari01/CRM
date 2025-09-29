@@ -76,31 +76,10 @@ const AddCandidatePage = () => {
     }
   };
 
-  // Helper function to get proper authorization token
-  const getAuthToken = (): string | null => {
-    try {
-      const token = sessionStorage.getItem("token");
-      if (!token) {
-        console.error("No token found in sessionStorage");
-        return null;
-      }
-
-      // Ensure the token has the Bearer prefix
-      if (token.startsWith('Bearer ')) {
-        return token;
-      } else {
-        return `Bearer ${token}`;
-      }
-    } catch (error) {
-      console.error("Error getting auth token:", error);
-      return null;
-    }
-  };
-
   // Fetch current user data
   const fetchUserData = async () => {
     try {
-      const token = getAuthToken();
+      const token = sessionStorage.getItem("token");
       if (!token) {
         toast.error("No authentication token found");
         return;
@@ -117,7 +96,7 @@ const AddCandidatePage = () => {
 
       // Fetch current user data using the extracted user ID
       const res = await axios.get(`${API_BASE}/auth/getById/${userId}`, {
-        headers: { Authorization: token },
+        headers: { Authorization: `Bearer ${token}` },
       });
       
       if (res.data.code === 1 && res.data.data) {
@@ -221,16 +200,12 @@ const AddCandidatePage = () => {
 
     setLoading(true);
     try {
-      const token = getAuthToken();
-      if (!token) {
-        toast.error("Authentication token not found");
-        return;
-      }
+      const token = sessionStorage.getItem("token");
 
       // Step 1: Add candidate
       const res = await axios.post(`${API_BASE}/candidates/add`, formData, {
         headers: {
-          Authorization: token,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
@@ -247,7 +222,7 @@ const AddCandidatePage = () => {
             form,
             {
               headers: {
-                Authorization: token,
+                Authorization: `Bearer ${token}`,
                 "Content-Type": "multipart/form-data",
               },
             }
@@ -260,376 +235,82 @@ const AddCandidatePage = () => {
         toast.error(res.data.message || "Failed to add candidate");
       }
     } catch (error: any) {
-      console.error("Error adding candidate:", error);
       toast.error(error?.response?.data?.message || "Failed to add candidate");
     } finally {
       setLoading(false);
     }
   };
 
-  // Helper function to parse CSV properly with better error handling
-  const parseCSV = (text: string): string[][] => {
-    const lines = text.trim().split('\n');
-    const result: string[][] = [];
-    
-    for (let line of lines) {
-      if (!line.trim()) continue; // Skip empty lines
-      
-      const values: string[] = [];
-      let currentValue = '';
-      let inQuotes = false;
-      
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        const nextChar = line[i + 1];
-        
-        if (char === '"') {
-          if (inQuotes && nextChar === '"') {
-            // Escaped quote
-            currentValue += '"';
-            i++; // Skip next quote
-          } else {
-            // Toggle quote state
-            inQuotes = !inQuotes;
-          }
-        } else if (char === ',' && !inQuotes) {
-          // End of value
-          values.push(currentValue.trim());
-          currentValue = '';
-        } else {
-          currentValue += char;
-        }
-      }
-      
-      // Add the last value
-      values.push(currentValue.trim());
-      result.push(values);
-    }
-    
-    return result;
-  };
-
-  // Helper function to parse CSV and add candidates individually as fallback
-  const processCsvIndividually = async (file: File) => {
-    try {
-      console.log("Processing CSV file individually...");
-      
-      const text = await file.text();
-      const rows = parseCSV(text);
-      
-      if (rows.length < 2) {
-        throw new Error("CSV file must have at least a header row and one data row");
-      }
-
-      const headers = rows[0].map(h => h.toLowerCase().trim());
-      console.log("CSV Headers:", headers);
-
-      // Create field mapping
-      const getFieldIndex = (possibleNames: string[]) => {
-        for (const name of possibleNames) {
-          const index = headers.findIndex(h => h.includes(name.toLowerCase()));
-          if (index !== -1) return index;
-        }
-        return -1;
-      };
-
-      const fieldIndices = {
-        name: getFieldIndex(['name']),
-        email: getFieldIndex(['email']),
-        phone: getFieldIndex(['phone']),
-        experience: getFieldIndex(['experience', 'exp']),
-        currentCTC: getFieldIndex(['currentctc', 'current_ctc', 'current ctc', 'currentctc']),
-        expectedCTC: getFieldIndex(['expectedctc', 'expected_ctc', 'expected ctc', 'expectedctc']),
-        noticePeriod: getFieldIndex(['noticeperiod', 'notice_period', 'notice period', 'notice']),
-        skills: getFieldIndex(['skills', 'skill']),
-        linkedInProfile: getFieldIndex(['linkedin', 'linkedinprofile', 'linkedin_profile']),
-        notes: getFieldIndex(['notes', 'note', 'comments'])
-      };
-
-      console.log("Field indices:", fieldIndices);
-
-      // Validate required fields exist
-      const requiredFields = ['name', 'email', 'phone', 'experience', 'currentCTC', 'expectedCTC', 'noticePeriod', 'skills', 'linkedInProfile'];
-      const missingFields = requiredFields.filter(field => fieldIndices[field as keyof typeof fieldIndices] === -1);
-      
-      if (missingFields.length > 0) {
-        throw new Error(`Missing required columns: ${missingFields.join(', ')}. Please ensure your CSV has all required columns.`);
-      }
-
-      let successCount = 0;
-      let failCount = 0;
-      const errors: string[] = [];
-
-      // Get auth token once
-      const token = getAuthToken();
-      if (!token) {
-        throw new Error("Authentication token not found");
-      }
-
-      // Process each data row
-      for (let i = 1; i < rows.length; i++) {
-        const values = rows[i];
-        
-        try {
-          // Skip empty rows
-          if (values.every(v => !v.trim())) continue;
-
-          const candidateData = {
-            name: values[fieldIndices.name]?.trim() || '',
-            email: values[fieldIndices.email]?.trim() || '',
-            phone: values[fieldIndices.phone]?.trim() || '',
-            experience: values[fieldIndices.experience]?.trim() || '',
-            currentCTC: values[fieldIndices.currentCTC]?.trim() || '',
-            expectedCTC: values[fieldIndices.expectedCTC]?.trim() || '',
-            noticePeriod: values[fieldIndices.noticePeriod]?.trim() || '',
-            skills: values[fieldIndices.skills]?.trim() || '',
-            linkedInProfile: values[fieldIndices.linkedInProfile]?.trim() || '',
-            notes: fieldIndices.notes !== -1 ? (values[fieldIndices.notes]?.trim() || '') : ''
-          };
-
-          // Validate required fields
-          const requiredFieldsData = [
-            candidateData.name,
-            candidateData.email,
-            candidateData.phone,
-            candidateData.experience,
-            candidateData.currentCTC,
-            candidateData.expectedCTC,
-            candidateData.noticePeriod,
-            candidateData.skills,
-            candidateData.linkedInProfile
-          ];
-
-          if (requiredFieldsData.some(field => !field)) {
-            errors.push(`Row ${i + 1}: Missing required data for candidate ${candidateData.name || 'unnamed'}`);
-            failCount++;
-            continue;
-          }
-
-          // Validate email format
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(candidateData.email)) {
-            errors.push(`Row ${i + 1}: Invalid email format for ${candidateData.name}`);
-            failCount++;
-            continue;
-          }
-
-          console.log(`Adding candidate ${i}: ${candidateData.name}`);
-
-          const response = await axios.post(`${API_BASE}/candidates/add`, candidateData, {
-            headers: {
-              Authorization: token,
-              "Content-Type": "application/json",
-            },
-          });
-
-          if (response.data.code === 1) {
-            successCount++;
-            console.log(`✓ Successfully added: ${candidateData.name}`);
-          } else {
-            const errorMsg = response.data.message || 'Unknown error';
-            errors.push(`Row ${i + 1}: ${errorMsg} - ${candidateData.name}`);
-            failCount++;
-          }
-
-        } catch (error: any) {
-          console.error(`Error processing row ${i + 1}:`, error);
-          const errorMsg = error.response?.data?.message || error.message;
-          errors.push(`Row ${i + 1}: ${errorMsg}`);
-          failCount++;
-        }
-
-        // Add delay to avoid overwhelming server
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      // Show results
-      if (successCount > 0 && failCount === 0) {
-        toast.success(`Successfully added all ${successCount} candidates!`);
-      } else if (successCount > 0) {
-        toast.success(`Added ${successCount} candidates successfully. ${failCount} failed.`);
-        console.warn("Failed candidates:", errors);
-      } else {
-        toast.error(`Failed to add any candidates. ${failCount} errors occurred.`);
-        console.error("All errors:", errors);
-      }
-
-      return { success: successCount > 0, successCount, failCount, errors };
-
-    } catch (error: any) {
-      console.error("Error processing CSV individually:", error);
-      throw error;
-    }
-  };
-
-  // Bulk upload handler with correct API endpoint
+  // Bulk Upload handler - available for all users
   const handleBulkUpload = async (file: File) => {
     // Validate file type
-    if (!file.name.toLowerCase().endsWith('.csv') && !file.name.toLowerCase().endsWith('.xlsx')) {
-      toast.error("Please upload a CSV or Excel (.xlsx) file.");
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
-      toast.error("File size too large. Please upload a file smaller than 10MB.");
+    const allowedTypes = ['.csv', '.xlsx'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!allowedTypes.includes(fileExtension)) {
+      toast.error("Only CSV and XLSX files are allowed for bulk upload");
       return;
     }
 
     setBulkUploadLoading(true);
+    const token = sessionStorage.getItem("token");
     
     try {
-      const rawToken = sessionStorage.getItem("token");
-      if (!rawToken) {
-        toast.error("Authentication token not found. Please login again.");
-        return;
-      }
-
-      console.log("Starting bulk upload to correct endpoint...");
-      console.log("File details:", { 
-        name: file.name, 
-        size: file.size, 
-        type: file.type 
-      });
-
       const formData = new FormData();
       formData.append("file", file);
 
-      // Use the correct bulk upload endpoint
-      const correctEndpoint = "http://13.127.232.90:8081/import/candidates";
+      // Using the API_BASE endpoint
+      const res = await axios.post(`${API_BASE}/import/candidates`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
 
-      try {
-        console.log("Uploading to:", correctEndpoint);
-        
-        // Try with raw token (as seen in your network request)
-        const response = await axios.post(correctEndpoint, formData, {
-          headers: {
-            // Use raw token without Bearer prefix (as seen in your network logs)
-            Authorization: rawToken.replace('Bearer ', '').trim(),
-            // Let browser set Content-Type automatically for multipart/form-data
-          },
-          timeout: 60000, // 60 seconds timeout for large files
-          maxContentLength: 50 * 1024 * 1024, // 50MB
-          maxBodyLength: 50 * 1024 * 1024,
-        });
-
-        console.log("Bulk upload response:", response.data);
-
-        // Check for success response
-        if (response.data.code === 1 || response.status === 200 || response.data.success) {
-          const message = response.data.message || "Bulk upload completed successfully!";
-          const count = response.data.count || response.data.totalCount || "multiple";
-          
-          toast.success(`${message} ${count !== "multiple" ? `(${count} candidates added)` : ""}`);
-          
-          console.log("✅ Bulk upload successful!");
-          return;
-        } else {
-          // If response doesn't indicate success, throw error
-          throw new Error(response.data.message || "Upload failed - unknown error");
-        }
-
-      } catch (uploadError: any) {
-        console.error("Bulk upload failed:", uploadError);
-        
-        // Handle specific error cases
-        if (uploadError.response) {
-          const status = uploadError.response.status;
-          const errorMessage = uploadError.response.data?.message || uploadError.response.statusText;
-          
-          console.error("Upload error details:", {
-            status,
-            message: errorMessage,
-            data: uploadError.response.data
-          });
-
-          switch (status) {
-            case 400:
-              toast.error("Invalid file format or data. Please check your CSV/Excel file format and ensure all required columns are present.");
-              break;
-            case 401:
-              toast.error("Authentication failed. Please logout and login again.");
-              break;
-            case 403:
-              toast.error("Access denied. You may not have permission to bulk upload candidates.");
-              break;
-            case 413:
-              toast.error("File too large. Please use a smaller file (under 10MB).");
-              break;
-            case 415:
-              toast.error("Unsupported file type. Please upload a CSV or Excel (.xlsx) file.");
-              break;
-            case 422:
-              toast.error(`Data validation error: ${errorMessage}. Please check your file format and data.`);
-              break;
-            case 500:
-              toast.error("Server error occurred. Please try again later or contact support.");
-              break;
-            default:
-              toast.error(errorMessage || `Upload failed with error ${status}. Please try again.`);
-          }
-        } else if (uploadError.request) {
-          toast.error("Network error. Please check your internet connection and try again.");
-        } else {
-          toast.error("Upload failed. Please check your file and try again.");
-        }
-
-        // For CSV files, offer fallback to individual processing
-        if (file.name.toLowerCase().endsWith('.csv')) {
-          console.log("Offering fallback to individual processing...");
-          
-          try {
-            toast.loading("Processing candidates individually as fallback...", { duration: 2000 });
-            await processCsvIndividually(file);
-            return; // Success via fallback
-          } catch (fallbackError) {
-            console.error("Fallback processing also failed:", fallbackError);
-            toast.error("Both bulk upload and individual processing failed. Please check your file format.");
-          }
-        }
+      if (res.data.code === 1) {
+        toast.success(res.data.message || "Bulk upload successful!");
+      } else {
+        toast.error(res.data.message || "Bulk upload failed");
       }
-
     } catch (error: any) {
-      console.error("Bulk upload process failed:", error);
-      toast.error("Upload process failed. Please try again.");
+      console.error("Bulk upload error:", error);
+      toast.error(error?.response?.data?.message || "Bulk upload failed");
     } finally {
       setBulkUploadLoading(false);
     }
   };
 
-  // Handle bulk upload button click
+  // Handle bulk upload button click - available for all users
   const handleBulkUploadClick = () => {
     document.getElementById("bulkUploadInput")?.click();
   };
 
-  // Download sample data format handler
+  // Download sample data format handler - available for all users
   const handleSampleDownload = async () => {
     setSampleDownloadLoading(true);
     
     try {
-      // Enhanced sample CSV data with exact format needed
-      const sampleData = `NAME,EMAIL,PHONE,EXPERIENCE,CURRENTCTC,EXPECTEDCTC,NOTICEPERIOD,SKILLS,LINKEDIN,NOTES
+      // Create sample CSV data
+      const sampleData = `name,email,phone,experience,currentCTC,expectedCTC,noticePeriod,skills,linkedInProfile,notes
 John Doe,john.doe@email.com,9876543210,3 years,5 LPA,7 LPA,1 month,"React, Node.js, JavaScript",https://linkedin.com/in/johndoe,Excellent candidate with good technical skills
 Jane Smith,jane.smith@email.com,8765432109,5 years,8 LPA,12 LPA,2 months,"Python, Django, PostgreSQL",https://linkedin.com/in/janesmith,Senior developer with leadership experience
-Mike Johnson,mike.johnson@email.com,7654321098,2 years,3.5 LPA,5 LPA,Immediate,"HTML, CSS, JavaScript, Vue.js",https://linkedin.com/in/mikejohnson,Junior developer eager to learn
-Sarah Wilson,sarah.wilson@email.com,6543210987,4 years,6 LPA,9 LPA,3 weeks,"Java, Spring Boot, MySQL",https://linkedin.com/in/sarahwilson,Full-stack developer with team lead experience
-David Brown,david.brown@email.com,5432109876,1 year,2.5 LPA,4 LPA,2 weeks,"PHP, Laravel, MongoDB",https://linkedin.com/in/davidbrown,Fresh graduate with internship experience`;
+Mike Johnson,mike.johnson@email.com,7654321098,2 years,3.5 LPA,5 LPA,Immediate,"HTML, CSS, JavaScript, Vue.js",https://linkedin.com/in/mikejohnson,Junior developer eager to learn`;
 
+      // Create blob and download
       const blob = new Blob([sampleData], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'candidates_sample_format.csv';
-      
+      link.setAttribute('download', 'candidate_sample_format.csv');
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      link.remove();
       window.URL.revokeObjectURL(url);
       
       toast.success("Sample format downloaded successfully!");
-      
     } catch (error: any) {
       console.error("Sample download error:", error);
-      toast.error("Failed to download sample format. Please try again.");
+      toast.error("Failed to download sample format");
     } finally {
       setSampleDownloadLoading(false);
     }
@@ -650,13 +331,12 @@ David Brown,david.brown@email.com,5432109876,1 year,2.5 LPA,4 LPA,2 weeks,"PHP, 
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Sample Format Download */}
+            {/* Sample Format Download - Available for all users */}
             <button
               type="button"
               onClick={handleSampleDownload}
               disabled={sampleDownloadLoading}
               className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Download sample CSV format for bulk upload"
             >
               {sampleDownloadLoading ? (
                 <>
@@ -664,12 +344,12 @@ David Brown,david.brown@email.com,5432109876,1 year,2.5 LPA,4 LPA,2 weeks,"PHP, 
                 </>
               ) : (
                 <>
-                  <Download className="w-4 h-4 mr-2" /> Sample Format
+                  <Download className="w-4 h-4 mr-2" /> Sample format
                 </>
               )}
             </button>
 
-            {/* Bulk Upload */}
+            {/* Bulk Upload - Available for all users */}
             <input
               id="bulkUploadInput"
               type="file"
@@ -678,6 +358,7 @@ David Brown,david.brown@email.com,5432109876,1 year,2.5 LPA,4 LPA,2 weeks,"PHP, 
               onChange={(e) => {
                 if (e.target.files?.[0]) {
                   handleBulkUpload(e.target.files[0]);
+                  // Reset the input to allow same file upload again
                   e.target.value = '';
                 }
               }}
@@ -687,7 +368,6 @@ David Brown,david.brown@email.com,5432109876,1 year,2.5 LPA,4 LPA,2 weeks,"PHP, 
               onClick={handleBulkUploadClick}
               disabled={bulkUploadLoading}
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Upload CSV or Excel file with multiple candidates - will be automatically added"
             >
               {bulkUploadLoading ? (
                 <>

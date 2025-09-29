@@ -3,6 +3,7 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 import { API_BASE } from "../../utils/api";
 import { X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Department {
   id: number;
@@ -11,6 +12,7 @@ interface Department {
 }
 
 const ShowDepartmentPage = () => {
+  const navigate = useNavigate();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -101,10 +103,10 @@ const ShowDepartmentPage = () => {
               className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <button
-              onClick={() => { fetchDepartments(); toast.success("Departments refreshed!"); }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+              onClick={() => navigate("/home/department/add")}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
             >
-              <i className="fas fa-sync-alt mr-2"></i> Refresh
+              <i className="fas fa-plus mr-2"></i> Add
             </button>
           </div>
         </div>

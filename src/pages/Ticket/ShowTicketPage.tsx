@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import { toast } from "react-hot-toast";
@@ -20,6 +20,8 @@ const ShowTicketPage = () => {
   // Filter state - Initialize from URL parameter
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,6 +65,17 @@ const ShowTicketPage = () => {
       document.body.style.overflow = 'unset';
     };
   }, [assignModal, editModal, deleteModal]);
+
+  // Update dropdown position when it opens
+  useEffect(() => {
+    if (showFilterDropdown && filterButtonRef.current) {
+      const rect = filterButtonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX
+      });
+    }
+  }, [showFilterDropdown]);
 
   const fetchTickets = async () => {
     try {
@@ -363,32 +376,15 @@ const ShowTicketPage = () => {
             </button>
             
             {/* Status Filter Button */}
-            <div className="relative">
+            <div className="relative z-30">
               <button
+                ref={filterButtonRef}
                 onClick={() => setShowFilterDropdown(!showFilterDropdown)}
                 className="px-4 py-2 bg-white border rounded-lg hover:bg-gray-50 flex items-center space-x-2"
               >
                 <Filter className="w-4 h-4" />
                 <span>Filter: {statusFilter}</span>
               </button>
-              {showFilterDropdown && (
-                <div className="absolute top-full mt-1 left-0 bg-white border rounded-lg shadow-lg z-10 min-w-[150px]">
-                  {statusOptions.map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => {
-                        setStatusFilter(status);
-                        setShowFilterDropdown(false);
-                      }}
-                      className={`block w-full text-left px-4 py-2 hover:bg-gray-50 ${
-                        statusFilter === status ? 'bg-blue-50 text-blue-600' : ''
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
           
@@ -413,6 +409,38 @@ const ShowTicketPage = () => {
                 Clear filter
               </button>
             </p>
+          </div>
+        )}
+
+        {/* Filter Dropdown Portal - Rendered outside overflow container */}
+        {showFilterDropdown && (
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={() => setShowFilterDropdown(false)}
+          >
+            <div 
+              className="absolute bg-white border rounded-lg shadow-lg min-w-[150px]"
+              style={{
+                top: `${dropdownPosition.top}px`,
+                left: `${dropdownPosition.left}px`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {statusOptions.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => {
+                    setStatusFilter(status);
+                    setShowFilterDropdown(false);
+                  }}
+                  className={`block w-full text-left px-4 py-2 hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg ${
+                    statusFilter === status ? 'bg-blue-50 text-blue-600' : ''
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

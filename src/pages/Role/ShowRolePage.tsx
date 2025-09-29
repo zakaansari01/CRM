@@ -3,6 +3,7 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 import { API_BASE } from "../../utils/api";
 import { X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 interface Role {
   id: number;
@@ -11,6 +12,7 @@ interface Role {
 }
 
 const ShowRolePage = () => {
+  const navigate = useNavigate();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -104,11 +106,11 @@ const ShowRolePage = () => {
               onChange={(e) => setSearch(e.target.value)}
               className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            <button
-              onClick={() => { fetchRoles(); toast.success("Roles refreshed!"); }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+             <button
+              onClick={() => navigate("/home/role/add")}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center"
             >
-              <i className="fas fa-sync-alt mr-2"></i> Refresh
+              <i className="fas fa-plus mr-2"></i> Add
             </button>
           </div>
         </div>
